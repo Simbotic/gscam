@@ -35,14 +35,30 @@ if(USE_ROSBUILD)
     ${GSTREAMER_LIBRARIES}
     ${GST_APP_LIBRARIES})
 
+  rosbuild_add_library(gscam_depth src/gscam_depth.cpp)
+  target_link_libraries(gscam_depth
+    ${GSTREAMER_LIBRARIES}
+    ${GST_APP_LIBRARIES})
+
   rosbuild_add_executable(gscam_node src/gscam_node.cpp)
   target_link_libraries(gscam_node gscam
     ${GSTREAMER_LIBRARIES}
     ${GST_APP_LIBRARIES})
   set_target_properties(gscam_node PROPERTIES OUTPUT_NAME gscam)
 
+  rosbuild_add_executable(gscam_depth_node src/gscam_depth_node.cpp)
+  target_link_libraries(gscam_depth_node gscam_depth
+    ${GSTREAMER_LIBRARIES}
+    ${GST_APP_LIBRARIES})
+  set_target_properties(gscam_depth_node PROPERTIES OUTPUT_NAME gscam_depth)
+
   rosbuild_add_library(GSCamNodelet src/gscam_nodelet.cpp)
   target_link_libraries(GSCamNodelet gscam
+    ${GSTREAMER_LIBRARIES}
+    ${GST_APP_LIBRARIES})
+  
+  rosbuild_add_library(GSCamNodeletDepth src/gscam_depth_nodelet.cpp)
+  target_link_libraries(GSCamNodeletDepth gscam_depth
     ${GSTREAMER_LIBRARIES}
     ${GST_APP_LIBRARIES})
 
@@ -55,7 +71,7 @@ else()
 
   catkin_package(
     INCLUDE_DIRS include
-    LIBRARIES gscam
+    LIBRARIES gscam gscam_depth
     CATKIN_DEPENDS roscpp nodelet image_transport sensor_msgs
     camera_calibration_parsers camera_info_manager
     DEPENDS GSTREAMER GST_APP
@@ -73,6 +89,12 @@ else()
     ${GSTREAMER_LIBRARIES}
     ${GST_APP_LIBRARIES})
 
+  add_library(gscam_depth src/gscam_depth.cpp)
+  target_link_libraries(gscam_depth
+    ${catkin_LIBRARIES}
+    ${GSTREAMER_LIBRARIES}
+    ${GST_APP_LIBRARIES})
+
   add_executable(gscam_node src/gscam_node.cpp)
   target_link_libraries(gscam_node gscam
     ${catkin_LIBRARIES}
@@ -80,15 +102,28 @@ else()
     ${GST_APP_LIBRARIES})
   set_target_properties(gscam_node PROPERTIES OUTPUT_NAME gscam)
 
+  add_executable(gscam_depth_node src/gscam_depth_node.cpp)
+  target_link_libraries(gscam_depth_node gscam_depth
+    ${catkin_LIBRARIES}
+    ${GSTREAMER_LIBRARIES}
+    ${GST_APP_LIBRARIES})
+  set_target_properties(gscam_depth_node PROPERTIES OUTPUT_NAME gscam_depth)
+
   add_library(GSCamNodelet src/gscam_nodelet.cpp)
   target_link_libraries(GSCamNodelet gscam
+    ${catkin_LIBRARIES}
+    ${GSTREAMER_LIBRARIES}
+    ${GST_APP_LIBRARIES})
+  
+  add_library(GSCamNodeletDepth src/gscam_depth_nodelet.cpp)
+  target_link_libraries(GSCamNodeletDepth gscam_depth
     ${catkin_LIBRARIES}
     ${GSTREAMER_LIBRARIES}
     ${GST_APP_LIBRARIES})
 
   # Install directives
 
-  install(TARGETS gscam gscam_node GSCamNodelet
+  install(TARGETS gscam gscam_depth gscam_node gscam_depth_node GSCamNodelet
     ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
     LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
     RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
