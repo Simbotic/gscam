@@ -2,8 +2,11 @@ cmake_minimum_required(VERSION 2.8.3)
 
 project(gscam)
 
+add_compile_options(-std=c++11)
+
 # System Dependencies
 find_package(PkgConfig)
+find_package(ArrayFire)
 
 pkg_check_modules(GSTREAMER QUIET gstreamer-0.10)
 if(NOT GSTREAMER_FOUND)
@@ -93,7 +96,8 @@ else()
   target_link_libraries(gscam_depth
     ${catkin_LIBRARIES}
     ${GSTREAMER_LIBRARIES}
-    ${GST_APP_LIBRARIES})
+    ${GST_APP_LIBRARIES}
+    ArrayFire::af)
 
   add_executable(gscam_node src/gscam_node.cpp)
   target_link_libraries(gscam_node gscam

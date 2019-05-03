@@ -27,6 +27,9 @@ extern "C"{
 
 #include <gscam_depth/gscam_depth.h>
 
+#include <chrono>  // for high_resolution_clock
+#include <arrayfire.h>
+
 namespace gscam_depth {
 
   GSCam::GSCam(ros::NodeHandle nh_camera, ros::NodeHandle nh_private) :
@@ -229,7 +232,11 @@ namespace gscam_depth {
     return true;
   }
 
-  void GSCam::publish_stream()
+  af::array batched_f32_convert (const af::array &lhs, const af::array &rhs){
+    return lhs * rhs;
+  }
+
+  void GSCam::publish_stream(const bool SWITCH_TO_GPU)
   {
     ROS_INFO_STREAM("Publishing stream...");
 
@@ -362,17 +369,38 @@ namespace gscam_depth {
 
           img->header = cinfo->header;
 
-          uint8_t* lhs = buf_data;
+          float* ptrDD;
           std::vector<float> depth_buffer;
-          depth_buffer.resize(width_ * height_);
-          // float depth_buffer[width_ * height_];
-          for (size_t b=0; b < buf_size; b += 4) {
-            float rhs_x = 1.0f;
-            float rhs_y = 1.0/255.0f;
-            float rhs_z = 1.0/65025.0f;
-            float rhs_w = 1.0/16581375.0f;
-            depth_buffer[b/4] = lhs[b+0]*rhs_x + lhs[b+1]*rhs_y + lhs[b+2]*rhs_z + lhs[b+3]*rhs_w;
-          } 
+
+          auto start = std::chrono::high_resolution_clock::now();
+          if (SWITCH_TO_GPU)
+          {
+            const float convert_to_f32[] = { 1.0f };
+            const float lhs[] = { 1.0f, 1.0/255.0f, 1.0/65025.0f, 1.0/16581375.0f };
+
+            af::array af_convert_to_f32(1, convert_to_f32, afHost);
+            af::array af_lhs(1, 4, lhs, afHost);
+            af::array af_rhs(4, buf_size/4, buf_data, afHost);
+            af::array f32_af_rhs = af::batchFunc(af_convert_to_f32, af_rhs, batched_f32_convert);
+
+            af::array decodedData = af::matmul(af_lhs, f32_af_rhs);
+            ptrDD = decodedData.host<float>();
+          } else {
+            uint8_t* lhs = buf_data;
+            depth_buffer.resize(width_ * height_);
+            for (size_t b=0; b < buf_size; b += 4) {
+              float rhs_x = 1.0f;
+              float rhs_y = 1.0/255.0f;
+              float rhs_z = 1.0/65025.0f;
+              float rhs_w = 1.0/16581375.0f;
+              depth_buffer[b/4] = lhs[b+0]*rhs_x + lhs[b+1]*rhs_y + lhs[b+2]*rhs_z + lhs[b+3]*rhs_w;
+            }
+          }
+          auto finish = std::chrono::high_resolution_clock::now();
+
+          std::chrono::duration<double> elapsed = finish - start;
+          std::cout << "Elapsed time: " << elapsed.count() << " s\n";
+          
 
           // Image data and metadata
           img->width = width_;
@@ -389,10 +417,19 @@ namespace gscam_depth {
           } else {
               img->step = width_;
           }
-          std::copy(
-                  (uint8_t*)&depth_buffer[0],
-                  ((uint8_t*)&depth_buffer[0])+(buf_size),
-                  img->data.begin());
+
+          if (SWITCH_TO_GPU)
+          {
+            std::copy(
+                    (uint8_t*)&ptrDD[0],
+                    ((uint8_t*)&ptrDD[0])+(buf_size),
+                    img->data.begin());
+          } else {
+            std::copy(
+                    (uint8_t*)&depth_buffer[0],
+                    ((uint8_t*)&depth_buffer[0])+(buf_size),
+                    img->data.begin());
+          }
 
           // Publish the image/info
           camera_pub_.publish(img, cinfo);
@@ -435,7 +472,13 @@ namespace gscam_depth {
       }
 
       // Block while publishing
-      this->publish_stream();
+      const bool USE_GPU = true;
+      if (USE_GPU) {
+            ROS_INFO("====> On GPU");
+          } else {
+            ROS_INFO("====> On CPU");
+          }
+      this->publish_stream(USE_GPU);
 
       this->cleanup_stream();
 

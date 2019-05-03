@@ -26,7 +26,7 @@ namespace gscam_depth {
 
     bool configure();
     bool init_stream();
-    void publish_stream();
+    void publish_stream(const bool SWITCH_TO_GPU);
     void cleanup_stream();
 
     void run();
